@@ -1,0 +1,89 @@
+description: "Install the GH CLI if not already installed."
+
+parameters:
+  version:
+    description: Which version of the CLI to install. Follows semver e.g. "v0.10.0".
+    type: string
+    default: "latest"
+  install-dir:
+    type: string
+    default: /usr/local/bin
+    description: Directory in which to install gh binaries.
+  github_token:
+    description: |
+      GitHub Token a specific authentication token. Set this to the name of
+      the environment variable you will use to hold this
+      value, i.e. GITHUB_TOKEN.
+    type: env_var_name
+    default: GITHUB_TOKEN
+
+steps:
+  - run:
+      name: Install GH CLI <<parameters.version>>
+      command: |
+        PARAMETERS_VERSION="latest"
+        PARAMETERS_INSTALL_DIR="/usr/local/bin"
+
+        if [[ $EUID == 0 ]]; then export SUDO=""; else export SUDO="sudo"; fi
+        # grab gh version
+        if [[ <<parameters.version>> == "latest" ]]; then
+            # extract latest version from GitHub releases API
+            declare -i INDEX=0
+            while :
+            do
+            INDEX_VERSION=$(curl --silent --show-error --location --fail --retry 3 \
+                https://api.github.com/repos/cli/cli/tags | \
+                jq --argjson index "$INDEX" '.[$index].name')
+            # filter out betas & release candidates
+            if [[ $(echo "$INDEX_VERSION" | grep -v beta | grep -v rc) ]]; then
+                # can't use substring expression < 0 on macOS
+                GH_VERSION="${INDEX_VERSION:1:$((${#INDEX_VERSION} - 1 - 1))}"
+                printf "Latest stable version of gh cli is $GH_VERSION\n"
+                break
+            else
+                INDEX=INDEX+1
+            fi
+            done
+        else
+            GH_VERSION=<<parameters.version>>
+            printf "Selected version of gh is $GH_VERSION\n"
+        fi
+
+        # check if gh needs to be installed
+        GH_VERSION_NUMBER="${GH_VERSION:1}"
+        if command -v gh >> /dev/null 2>&1; then
+            if gh version | grep "$GH_VERSION_NUMBER" >> /dev/null 2>&1; then
+            printf "gh $GH_VERSION is already installed\n"
+            exit 0
+            else
+            printf "A different version of gh is installed ($(gh version)); removing it\n"
+            $SUDO rm -f $(command -v gh)
+            fi
+        fi
+        # get binary download URL for specified version
+        if uname -a | grep Darwin >> /dev/null 2>&1; then
+            PLATFORM=macOS
+        else
+            PLATFORM=linux
+        fi
+
+        GH_BINARY_URL="https://github.com/cli/cli/releases/download/v${GH_VERSION_NUMBER}/gh_${GH_VERSION_NUMBER}_${PLATFORM}_amd64.tar.gz"
+
+        # # download binary tarball
+        DOWNLOAD_DIR="$(mktemp -d)"
+        # DOWNLOAD_DIR="/Users/mgreenwald/tmp/gh_test/tmp"
+        DOWNLOAD_FILE="${DOWNLOAD_DIR}/gh.tgz"
+        curl --output "$DOWNLOAD_FILE" \
+            --silent --show-error --location --fail --retry 3 \
+            "$GH_BINARY_URL"
+        tar xf "$DOWNLOAD_FILE" --strip-components=1 -C "$DOWNLOAD_DIR" && rm -f "$DOWNLOAD_FILE"
+        # install gh binaries
+        BINARIES=$(ls "${DOWNLOAD_DIR}/bin")
+        $SUDO mv "$DOWNLOAD_DIR"/bin/gh <<parameters.install-dir>>
+        # $SUDO rm -rf "$DOWNLOAD_DIR"
+        for binary in $BINARIES
+        do
+            $SUDO chmod +x "<<parameters.install-dir>>/$binary"
+        done
+        # verify version
+        printf "$(gh version) has been installed to $(which gh)\n"
