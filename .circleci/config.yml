@@ -12,6 +12,11 @@ parameters:
     type: string
     default: "dev:alpha"
 
+orb_prep_jobs:
+  - orb-tools/lint
+  - orb-tools/shellcheck
+  - orb-tools/pack
+
 executors:
   without-less:
     docker:
@@ -46,14 +51,11 @@ workflows:
     unless: << pipeline.parameters.run-integration-tests >>
     jobs:
       - orb-tools/lint
-
       - orb-tools/pack
-
       - orb-tools/publish-dev:
           context: orb-publishing
           orb-name: mdgreenwald/gh-cli
           requires: [orb-tools/pack, orb-tools/lint]
-
       - orb-tools/trigger-integration-tests-workflow:
           context: orb-publishing
           requires: [orb-tools/publish-dev]
@@ -62,7 +64,6 @@ workflows:
     when: << pipeline.parameters.run-integration-tests >>
     jobs:
       - integration-test-install
-
       - orb-tools/dev-promote-prod-from-commit-subject:
           orb-name: mdgreenwald/gh-cli
           context: orb-publishing
