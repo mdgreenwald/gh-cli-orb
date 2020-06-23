@@ -30,3 +30,5 @@ In this example `config.yml` snippet, the required GitHub secret (GitHub Token) 
         - gh-cli-example:
             context: ci
 ```
+
+## Fake entry for CI
