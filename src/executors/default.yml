@@ -1,0 +1,11 @@
+description: |
+  Highly cached minimal Ubuntu docker designed for CircleCI.
+parameters:
+  base-version:
+    description: >
+      Select your any of the available tags here: https://hub.docker.com/r/cimg/base.
+    type: string
+    default: "stable"
+
+docker:
+  - image: cimg/base:<<parameters.base-version>>

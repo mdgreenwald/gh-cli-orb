@@ -1,0 +1,7 @@
+version: 2.1
+
+description: |
+  Install and configure the GitHub command-line interface (gh)
+
+display:
+  source_url: https://github.com/mdgreenwald/gh-cli-orb

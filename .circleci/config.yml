@@ -1,0 +1,77 @@
+version: 2.1
+
+orbs:
+  orb-tools: circleci/orb-tools@9.0
+  gh-cli: mdgreenwald/gh-cli@<<pipeline.parameters.dev-orb-version>>
+
+parameters:
+  run-integration-tests:
+    type: boolean
+    default: false
+  dev-orb-version:
+    type: string
+    default: "dev:alpha"
+
+executors:
+  without-less:
+    docker:
+      - image: circleci/python:3.7
+  macos:
+    macos:
+      xcode: 11.4
+  machine:
+    machine:
+      image: ubuntu-1604:202004-01
+
+# Integration tests
+integration_tests: &integration_tests
+  [
+    integration-test-install
+  ]
+
+jobs:
+  integration-test-install:
+    executor: aws-cli/default
+    steps:
+      - checkout
+      - gh-cli/install
+      - run:
+          name: Test that gh is installed
+          command: |
+            # Test with gh command
+            gh version
+
+workflows:
+  lint-pack_validate_deploy-dev:
+    unless: << pipeline.parameters.run-integration-tests >>
+    jobs:
+      - orb-tools/lint
+
+      - orb-tools/pack
+
+      - orb-tools/publish-dev:
+          context: orb-publishing
+          orb-name: mdgreenwald/gh-cli
+          requires: [orb-tools/pack, orb-tools/lint]
+
+      - orb-tools/trigger-integration-tests-workflow:
+          context: orb-publishing
+          requires: [orb-tools/publish-dev]
+
+  integration-tests_deploy-prod:
+    when: << pipeline.parameters.run-integration-tests >>
+    jobs:
+      - integration-test-install
+
+      - orb-tools/dev-promote-prod-from-commit-subject:
+          orb-name: mdgreenwald/gh-cli
+          context: orb-publishing
+          add-pr-comment: true
+          bot-token-variable: GHI_TOKEN
+          bot-user: cpe-bot
+          fail-if-semver-not-indicated: true
+          publish-version-tag: true
+          filters:
+            branches:
+              only: master
+          requires: *integration_tests

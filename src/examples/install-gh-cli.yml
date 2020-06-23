@@ -1,0 +1,21 @@
+description: Install and configure the GitHub command-line interface (gh) in your jobs or commands.
+usage:
+  version: 2.1
+
+  orbs:
+    gh-cli: mdgreenwald/gh-cli@x.y
+
+  jobs:
+    gh-cli-example:
+      executor: gh-cli/default
+      steps:
+        - checkout
+        - gh-cli/install:
+            version: latest
+        - run: echo "Run your code here"
+
+  workflows:
+    gh-cli:
+      jobs:
+        - gh-cli-example:
+            context: ci
